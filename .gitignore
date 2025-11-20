@@ -1,0 +1,23 @@
+# Compiled binaries
+bin/
+
+# Object files
+*.o
+*.obj
+
+# Executables
+*.exe
+*.out
+
+# Debug files
+*.dSYM/
+*.su
+
+# Editor backups
+*~
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
