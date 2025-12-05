@@ -101,7 +101,6 @@ int play_board_backup() {
     pid_t pid = fork();
 
     if (pid == 0) {
-        // ===== PROCESSO FILHO =====
         // Este processo continua a jogar
         has_backup = 0;
         backup_process = 0;
@@ -109,7 +108,6 @@ int play_board_backup() {
     }
 
     if (pid > 0) {
-        // ===== PROCESSO PAI =====
         // Este processo ESPERA que o filho termine
         has_backup = 1;
         backup_process = pid;
