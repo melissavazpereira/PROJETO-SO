@@ -52,10 +52,7 @@ int play_board(board_t * game_board) {
     debug("KEY %c\n", play->command);
 
     if (play->command == 'Q') {
-        if(has_backup && backup_process > 0){
-            kill(backup_process, SIGKILL);
-            waitpid(backup_process, NULL, 0);
-        }
+        
         return QUIT_GAME;
     }
 
@@ -68,12 +65,7 @@ int play_board(board_t * game_board) {
     int result = move_pacman(game_board, 0, play);
     
     if (result == REACHED_PORTAL) {
-        if(has_backup && backup_process > 0){
-            kill(backup_process, SIGKILL);
-            waitpid(backup_process, NULL, 0);
-            has_backup = 0;
-            backup_process = 0;
-        }
+        
         return NEXT_LEVEL;
     }
 
@@ -137,6 +129,7 @@ int main(int argc, char** argv) {
     
     char *level_directory = argv[1];
     int current_level_index = 0;
+    pid_t original_pid = getpid();
 
     srand((unsigned int)time(NULL));
     open_debug_file("debug.log");
@@ -149,6 +142,13 @@ int main(int argc, char** argv) {
     while (!end_game) {
         if (load_level(&game_board, level_directory, current_level_index, accumulated_points) < 0) {
             debug("Todos os níveis completados!\n");
+          
+
+            if (getpid() != original_pid) {
+                terminal_cleanup();
+                close_debug_file();
+                exit(0);
+            }
             break;
         }
         
@@ -166,6 +166,7 @@ int main(int argc, char** argv) {
             }
 
             if(result == NEXT_LEVEL) {
+                
                 screen_refresh(&game_board, DRAW_WIN);
                 sleep_ms(game_board.tempo);
                 current_level_index++;
@@ -173,6 +174,11 @@ int main(int argc, char** argv) {
             }
             
             if(result == QUIT_GAME) {
+                if (getpid() != original_pid) {
+                    terminal_cleanup();
+                    close_debug_file();
+                    exit(0);
+                }
                 screen_refresh(&game_board, DRAW_GAME_OVER); 
                 sleep_ms(game_board.tempo);
                 end_game = true;
