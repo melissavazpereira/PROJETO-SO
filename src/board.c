@@ -10,12 +10,18 @@
 
 FILE * debugfile;
 
+typedef struct {
+    board_t* board;
+    int index;
+} thread_arg_t;
+
 // Helper private function to find and kill pacman at specific position
 static int find_and_kill_pacman(board_t* board, int new_x, int new_y) {
     for (int p = 0; p < board->n_pacmans; p++) {
         pacman_t* pac = &board->pacmans[p];
         if (pac->pos_x == new_x && pac->pos_y == new_y && pac->alive) {
             pac->alive = 0;
+            board->pacman_dead = 1;
             kill_pacman(board, p);
             return DEAD_PACMAN;
         }
@@ -91,6 +97,7 @@ int move_pacman(board_t* board, int pacman_index, command_t* command) {
     if (board->board[new_index].has_portal) {
         board->board[old_index].content = ' ';
         board->board[new_index].content = 'P';
+        board->portal_reached = 1;
         return REACHED_PORTAL;
     }
 
@@ -99,6 +106,7 @@ int move_pacman(board_t* board, int pacman_index, command_t* command) {
     }
 
     if (target_content == 'M') {
+        board->pacman_dead = 1;
         kill_pacman(board, pacman_index);
         return DEAD_PACMAN;
     }
@@ -686,4 +694,111 @@ void print_board(board_t *board) {
     offset += snprintf(buffer + offset, sizeof(buffer) - offset, "==================\n");
     buffer[offset] = '\0';
     debug("%s", buffer);
+}
+
+
+void* pacman_thread_func(void* arg) {
+    thread_arg_t* targ = (thread_arg_t*)arg;
+    board_t* board = targ->board;
+    int pacman_index = targ->index;
+    free(targ);
+    
+    pacman_t* pac = &board->pacmans[pacman_index];
+    
+    while (board->game_running && pac->alive) {
+        pthread_rwlock_wrlock(&board->board_lock);
+        
+        if (!board->game_running || !pac->alive) {
+            pthread_rwlock_unlock(&board->board_lock);
+            break;
+        }
+        
+        command_t* cmd = &pac->moves[pac->current_move % pac->n_moves];
+        int result = move_pacman(board, pacman_index, cmd);
+        
+        pthread_rwlock_unlock(&board->board_lock);
+        
+        if (result == REACHED_PORTAL || result == DEAD_PACMAN) {
+            board->game_running = 0;
+            break;
+        }
+        
+        sleep_ms(board->tempo);
+    }
+    
+    return NULL;
+}
+
+void* ghost_thread_func(void* arg) {
+    thread_arg_t* targ = (thread_arg_t*)arg;
+    board_t* board = targ->board;
+    int ghost_index = targ->index;
+    free(targ);
+    
+    ghost_t* ghost = &board->ghosts[ghost_index];
+    
+    while (board->game_running) {
+        pthread_rwlock_wrlock(&board->board_lock);
+        
+        if (!board->game_running) {
+            pthread_rwlock_unlock(&board->board_lock);
+            break;
+        }
+        
+        command_t* cmd = &ghost->moves[ghost->current_move % ghost->n_moves];
+        move_ghost(board, ghost_index, cmd);
+        
+        pthread_rwlock_unlock(&board->board_lock);
+        
+        sleep_ms(board->tempo);
+    }
+    
+    return NULL;
+}
+
+void init_board_threading(board_t* board) {
+    pthread_rwlock_init(&board->board_lock, NULL);
+    board->game_running = 1;
+    board->portal_reached = 0;
+    board->pacman_dead = 0;
+}
+
+void start_character_threads(board_t* board) {
+    // Start pacman threads (only if automated)
+    for (int i = 0; i < board->n_pacmans; i++) {
+        if (board->pacmans[i].n_moves > 0) {
+            thread_arg_t* arg = malloc(sizeof(thread_arg_t));
+            arg->board = board;
+            arg->index = i;
+            pthread_create(&board->pacmans[i].thread, NULL, pacman_thread_func, arg);
+        }
+    }
+    
+    // Start ghost threads
+    for (int i = 0; i < board->n_ghosts; i++) {
+        thread_arg_t* arg = malloc(sizeof(thread_arg_t));
+        arg->board = board;
+        arg->index = i;
+        pthread_create(&board->ghosts[i].thread, NULL, ghost_thread_func, arg);
+    }
+}
+
+void stop_character_threads(board_t* board) {
+    board->game_running = 0;
+    
+    // Join pacman threads
+    for (int i = 0; i < board->n_pacmans; i++) {
+        if (board->pacmans[i].n_moves > 0) {
+            pthread_join(board->pacmans[i].thread, NULL);
+        }
+    }
+    
+    // Join ghost threads
+    for (int i = 0; i < board->n_ghosts; i++) {
+        pthread_join(board->ghosts[i].thread, NULL);
+    }
+}
+
+void cleanup_board_threading(board_t* board) {
+    pthread_rwlock_destroy(&board->board_lock);
 }
