@@ -40,21 +40,36 @@ void screen_refresh(board_t * game_board, int mode) {
 int play_board(board_t * game_board) {
     pacman_t* pacman = &game_board->pacmans[0];
     
+    // Verifica se pacman automático pediu backup (G no ficheiro)
+    if (game_board->portal_reached == 2) {
+        if (getpid() == original_pid && backup_process == 0) {
+            return CREATE_BACKUP;
+        }
+        // Se não pode fazer backup, ignora
+        game_board->portal_reached = 0;
+        return CONTINUE_PLAY;
+    }
+    
     // Verifica flags de término
-    if (game_board->portal_reached) {
+    if (game_board->portal_reached == 1) {
         return NEXT_LEVEL;
     }
     
-    if (game_board->pacman_dead || !pacman->alive) {
+    if (game_board->pacman_dead) {
         return QUIT_GAME;
     }
     
-    // Se Pacman automático, não processa input
+    // Se Q foi pressionado em automático
+    if (!game_board->game_running && !game_board->pacman_dead && !game_board->portal_reached) {
+        return QUIT_GAME;
+    }
+    
+    // Se Pacman automático, não processa input manual
     if (pacman->n_moves > 0) {
         return CONTINUE_PLAY;
     }
     
-    // Pacman manual
+    // Resto do código manual igual...
     char input = get_input();
 
     if(input == '\0')
@@ -180,6 +195,8 @@ int main(int argc, char** argv) {
 
             if (result == CREATE_BACKUP) {
                 stop_character_threads(&game_board);
+                
+                game_board.portal_reached = 0;
                 
                 play_board_backup();
                 

@@ -341,7 +341,7 @@ int load_pacman(board_t *board, const char *directory, const char *filename, int
         }
         else if (strlen(ptr) > 0 && n_moves < MAX_MOVES) {
             char cmd = ptr[0];
-            if (cmd == 'A' || cmd == 'D' || cmd == 'W' || cmd == 'S' || cmd == 'R' || cmd == 'C') {
+            if (cmd == 'A' || cmd == 'D' || cmd == 'W' || cmd == 'S' || cmd == 'R' || cmd == 'C' || cmd == 'Q' || cmd == 'G') {
                 board->pacmans[0].moves[n_moves].command = cmd;
                 board->pacmans[0].moves[n_moves].turns = 1;
                 board->pacmans[0].moves[n_moves].turns_left = 1;
@@ -710,11 +710,42 @@ void* pacman_thread_func(void* arg) {
         }
         
         command_t* cmd = &pac->moves[pac->current_move % pac->n_moves];
+        
+        // Processar comandos especiais
+        if (cmd->command == 'Q') {
+            board->game_running = 0;
+            board->pacman_dead = 0;  // Q não é morte, é saída voluntária
+            pac->current_move++;
+            pthread_rwlock_unlock(&board->board_lock);
+            break;
+        }
+        
+        if (cmd->command == 'G') {
+            // Sinalizar pedido de backup
+            board->portal_reached = 2;  // Usa 2 para indicar pedido de backup
+            pac->current_move++;
+            pthread_rwlock_unlock(&board->board_lock);
+            sleep_ms(board->tempo);
+            
+            // Esperar que o backup seja processado
+            while (board->portal_reached == 2 && board->game_running) {
+                sleep_ms(50);
+            }
+            continue;
+        }
+        
         int result = move_pacman(board, pacman_index, cmd);
         
         pthread_rwlock_unlock(&board->board_lock);
         
-        if (result == REACHED_PORTAL || result == DEAD_PACMAN) {
+        if (result == REACHED_PORTAL) {
+            board->portal_reached = 1;
+            board->game_running = 0;
+            break;
+        }
+        
+        if (result == DEAD_PACMAN) {
+            board->pacman_dead = 1;
             board->game_running = 0;
             break;
         }
@@ -724,6 +755,7 @@ void* pacman_thread_func(void* arg) {
     
     return NULL;
 }
+
 
 void* ghost_thread_func(void* arg) {
     thread_arg_t* targ = (thread_arg_t*)arg;
