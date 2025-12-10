@@ -22,12 +22,9 @@ int has_backup = 0;
 pid_t backup_process = 0;
 pid_t original_pid;
 
-int strings_compare(const void *a, const void *b){
-    return strcmp(*(const char**)a, *(const char**)b);
-}
 
 void screen_refresh(board_t * game_board, int mode) {
-    pthread_rwlock_rdlock(&game_board->board_lock);
+    pthread_rwlock_rdlock(&game_board->board_lock); 
     debug("REFRESH\n");
     draw_board(game_board, mode);
     refresh_screen();
@@ -69,7 +66,6 @@ int play_board(board_t * game_board) {
         return CONTINUE_PLAY;
     }
     
-    // Resto do código manual igual...
     char input = get_input();
 
     if(input == '\0')
@@ -184,7 +180,7 @@ int main(int argc, char** argv) {
         }
         
         // Inicializa threading
-        init_board_threading(&game_board);
+        start_board_thread(&game_board);
         start_character_threads(&game_board);
         
         draw_board(&game_board, DRAW_MENU);
@@ -200,7 +196,7 @@ int main(int argc, char** argv) {
                 
                 play_board_backup();
                 
-                init_board_threading(&game_board);
+                start_board_thread(&game_board);
                 start_character_threads(&game_board);
                 
                 screen_refresh(&game_board, DRAW_MENU);
@@ -249,7 +245,7 @@ int main(int argc, char** argv) {
         }
         
         print_board(&game_board);
-        cleanup_board_threading(&game_board);
+        stop_board_thread(&game_board);
         unload_level(&game_board);
     }    
     

@@ -202,6 +202,7 @@ int move_ghost_charged(board_t* board, int ghost_index, char direction) {
     ghost->charged = 0;
     int result = move_ghost_charged_direction(board, ghost, direction, &new_x, &new_y);
     if (result == INVALID_MOVE) {
+        debug("DEFAULT CHARGED MOVE - direction = %c\n", direction);
         return INVALID_MOVE;
     }
 
@@ -320,7 +321,6 @@ int load_pacman(board_t *board, const char *directory, const char *filename, int
     
     int fd = open(path, O_RDONLY);
     if (fd < 0) {
-        debug("Erro ao abrir ficheiro Pacman: %s\n", path);
         return -1;
     }
     
@@ -381,7 +381,6 @@ int load_ghost(board_t *board, int ghost_index, const char *directory, const cha
     
     int fd = open(path, O_RDONLY);
     if (fd < 0) {
-        debug("Erro ao abrir ficheiro Monstro: %s\n", path);
         return -1;
     }
     
@@ -438,7 +437,6 @@ int load_ghost(board_t *board, int ghost_index, const char *directory, const cha
 int load_level(board_t *board, const char *directory, int level_index, int points) {
     DIR *dir = opendir(directory);
     if (!dir) {
-        debug("Erro ao abrir diretoria: %s\n", directory);
         return -1;
     }
     
@@ -693,7 +691,7 @@ void print_board(board_t *board) {
 }
 
 
-void* pacman_thread_func(void* arg) {
+void* pacman_thread(void* arg) {
     thread_arg_t* targ = (thread_arg_t*)arg;
     board_t* board = targ->board;
     int pacman_index = targ->index;
@@ -756,7 +754,7 @@ void* pacman_thread_func(void* arg) {
 }
 
 
-void* ghost_thread_func(void* arg) {
+void* ghost_thread(void* arg) {
     thread_arg_t* targ = (thread_arg_t*)arg;
     board_t* board = targ->board;
     int ghost_index = targ->index;
@@ -783,7 +781,7 @@ void* ghost_thread_func(void* arg) {
     return NULL;
 }
 
-void init_board_threading(board_t* board) {
+void start_board_thread(board_t* board) {
     pthread_rwlock_init(&board->board_lock, NULL);
     board->game_running = 1;
     board->portal_reached = 0;
@@ -797,7 +795,7 @@ void start_character_threads(board_t* board) {
             thread_arg_t* arg = malloc(sizeof(thread_arg_t));
             arg->board = board;
             arg->index = i;
-            pthread_create(&board->pacmans[i].thread, NULL, pacman_thread_func, arg);
+            pthread_create(&board->pacmans[i].thread, NULL, pacman_thread, arg);
         }
     }
     
@@ -806,7 +804,7 @@ void start_character_threads(board_t* board) {
         thread_arg_t* arg = malloc(sizeof(thread_arg_t));
         arg->board = board;
         arg->index = i;
-        pthread_create(&board->ghosts[i].thread, NULL, ghost_thread_func, arg);
+        pthread_create(&board->ghosts[i].thread, NULL, ghost_thread, arg);
     }
 }
 
@@ -826,6 +824,6 @@ void stop_character_threads(board_t* board) {
     }
 }
 
-void cleanup_board_threading(board_t* board) {
+void stop_board_thread(board_t* board) {
     pthread_rwlock_destroy(&board->board_lock);
 }

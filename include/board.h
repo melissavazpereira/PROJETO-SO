@@ -111,9 +111,9 @@ void debug(const char * format, ...);
 /*Writes the board and its contents to the open debug file*/
 void print_board(board_t* board);
 
-void init_board_threading(board_t* board);
+void start_board_thread(board_t* board);
 void start_character_threads(board_t* board);
 void stop_character_threads(board_t* board);
-void cleanup_board_threading(board_t* board);
+void stop_board_thread(board_t* board);
 
 #endif
