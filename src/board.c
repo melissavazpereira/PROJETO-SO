@@ -723,13 +723,12 @@ void* pacman_thread_func(void* arg) {
         if (cmd->command == 'G') {
             // Sinalizar pedido de backup
             board->portal_reached = 2;  // Usa 2 para indicar pedido de backup
-            pac->current_move++;
             pthread_rwlock_unlock(&board->board_lock);
             sleep_ms(board->tempo);
             
             // Esperar que o backup seja processado
             while (board->portal_reached == 2 && board->game_running) {
-                sleep_ms(50);
+                sleep_ms(board->tempo);
             }
             continue;
         }
@@ -750,7 +749,7 @@ void* pacman_thread_func(void* arg) {
             break;
         }
         
-        sleep_ms(board->tempo);
+        sleep_ms(board->tempo * 2);
     }
     
     return NULL;
@@ -778,7 +777,7 @@ void* ghost_thread_func(void* arg) {
         
         pthread_rwlock_unlock(&board->board_lock);
         
-        sleep_ms(board->tempo);
+        sleep_ms(board->tempo * 2);
     }
     
     return NULL;
