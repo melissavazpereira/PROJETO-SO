@@ -67,6 +67,12 @@ typedef struct {
     int pacman_dead;
 } board_t;
 
+
+typedef struct {
+    board_t* board;
+    int index;
+} thread_arg_t;
+
 /*Makes the current thread sleep for 'int milliseconds' miliseconds*/
 void sleep_ms(int milliseconds);
 

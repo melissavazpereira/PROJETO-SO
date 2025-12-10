@@ -10,10 +10,6 @@
 
 FILE * debugfile;
 
-typedef struct {
-    board_t* board;
-    int index;
-} thread_arg_t;
 
 // Helper private function to find and kill pacman at specific position
 static int find_and_kill_pacman(board_t* board, int new_x, int new_y) {
@@ -315,7 +311,7 @@ static int read_line(int fd, char *buffer, size_t max_size) {
     }
     
     buffer[i] = '\0';
-    return i > 0 ? i : -1;
+    return i > 0 ? (int) i : -1;
 }
 
 int load_pacman(board_t *board, const char *directory, const char *filename, int points) {
