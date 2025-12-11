@@ -24,50 +24,54 @@ pid_t original_pid;
 
 
 void screen_refresh(board_t * game_board, int mode) {
-    pthread_rwlock_rdlock(&game_board->board_lock); 
+    pthread_rwlock_rdlock(&game_board->board_lock); // bloqueia o board para leitura
     debug("REFRESH\n");
     draw_board(game_board, mode);
     refresh_screen();
-    pthread_rwlock_unlock(&game_board->board_lock);
+    pthread_rwlock_unlock(&game_board->board_lock); // desbloqueia o board
     
     if(game_board->tempo != 0)
         sleep_ms(game_board->tempo);       
 }
 
 int play_board(board_t * game_board) {
+
     pacman_t* pacman = &game_board->pacmans[0];
     
-    // Verifica se pacman automático pediu backup (G no ficheiro)
+    // verifica se pediu backup
     if (game_board->portal_reached == 2) {
         if (getpid() == original_pid && backup_process == 0) {
             return CREATE_BACKUP;
         }
-        // Se não pode fazer backup, ignora
+        // se nao possui backup, ignora
         game_board->portal_reached = 0;
         return CONTINUE_PLAY;
     }
     
-    // Verifica flags de término
+    // verifica se chegou ao portal
     if (game_board->portal_reached == 1) {
         return NEXT_LEVEL;
     }
     
+    // verifica se pacman morreu
     if (game_board->pacman_dead) {
         return QUIT_GAME;
     }
     
-    // Se Q foi pressionado em automático
+    // verifica se o jogo acabou sem ser morte, no caso em que Q e automatico
     if (!game_board->game_running && !game_board->pacman_dead && !game_board->portal_reached) {
         return QUIT_GAME;
     }
     
-    // Se Pacman automático, não processa input manual
+    // se pacman e automatico, nao le input do teclado
     if (pacman->n_moves > 0) {
         return CONTINUE_PLAY;
     }
     
+    // le input do teclado
     char input = get_input();
 
+    // se nao houve input, continua
     if(input == '\0')
         return CONTINUE_PLAY;
 
@@ -83,15 +87,17 @@ int play_board(board_t * game_board) {
         }
     }
 
+    // bloqueia o board para escrita
     pthread_rwlock_wrlock(&game_board->board_lock);
     
-    command_t cmd;
-    cmd.command = input;
-    cmd.turns = 1;
-    cmd.turns_left = 1;
+    command_t c;
+    c.command = input;
+    c.turns = 1;
+    c.turns_left = 1;
     
-    int result = move_pacman(game_board, 0, &cmd);
+    int result = move_pacman(game_board, 0, &c);
     
+    // desbloqueia o board
     pthread_rwlock_unlock(&game_board->board_lock);
     
     if (result == REACHED_PORTAL) {
@@ -108,34 +114,35 @@ int play_board(board_t * game_board) {
 }
 
 int play_board_backup() {
+
+    // cria a copia do processo atual (pai) - cria o filho
     pid_t pid = fork();
 
     if (pid == 0) {
-        // Filho continua a jogar
+        // filho continua a jogar
         has_backup = 0;
         backup_process = 0;
         return 0;
     }
 
     if (pid > 0) {
-        // Pai espera
-        has_backup = 1;
-        backup_process = pid;
+        has_backup = 1; // pai espera o filho terminar
+        backup_process = pid; // guarda o pid do filho
         
-        int status;
-        waitpid(pid, &status, 0);
+        int status; // guarda o status do filho
+        waitpid(pid, &status, 0); // bloqueia o pai ate o filho terminar
 
-        // Verificar como o filho terminou
+        // verifica se o filho saiu normalmente
         if (WIFEXITED(status)) {
-            int exit_code = WEXITSTATUS(status);
+            int exit_code = WEXITSTATUS(status); // obtem o codigo de saida do filho
             
             if (exit_code == 1) {
-                // Filho saiu com Q (exit 1) - pai também sai
+                // filho saiu com Q, por isso pai tambem sai
                 terminal_cleanup();
                 close_debug_file();
-                exit(0);
+                exit(0); 
             }
-            // Se exit_code == 0, Pacman morreu - continua e retoma
+            // se exit_code == 0, filho morreu, pai retoma
         }
 
         terminal_cleanup();
@@ -151,6 +158,7 @@ int play_board_backup() {
 }
 
 int main(int argc, char** argv) {
+
     if (argc != 2) {
         printf("Usage: %s <level_directory>\n", argv[0]);
         return 1;
@@ -171,6 +179,7 @@ int main(int argc, char** argv) {
     while (!end_game) {
         if (load_level(&game_board, level_directory, current_level_index, accumulated_points) < 0) {
             
+            // nao ha mais niveis, termina o jogo
             if (getpid() != original_pid) {
                 terminal_cleanup();
                 close_debug_file();
@@ -179,7 +188,7 @@ int main(int argc, char** argv) {
             break;
         }
         
-        // Inicializa threading
+        // inicializa as threads 
         start_board_thread(&game_board);
         start_character_threads(&game_board);
         
@@ -215,22 +224,23 @@ int main(int argc, char** argv) {
             if(result == QUIT_GAME) {
                 stop_character_threads(&game_board);
                 
+                // verifica se pacman morreu
                 if (!game_board.pacmans[0].alive) {
-                    // Morreu
                     if (getpid() != original_pid) {
                         terminal_cleanup();
                         close_debug_file();
-                        exit(0);    // exit 0 = morreu → pai retoma
+                        exit(0);    // filho morre, pai retoma
                     }
                     end_game = true;
+
+                // se Q foi pedido
                 } else {
-                    // Q pressionado
                     if (getpid() != original_pid) {
                         terminal_cleanup();
                         close_debug_file();
                         screen_refresh(&game_board, DRAW_GAME_OVER);
                         sleep_ms(game_board.tempo);
-                        exit(1);    // exit 1 = Q → pai sai
+                        exit(1);    // pai sai com codigo 1
                     }
                     end_game = true;
                 }

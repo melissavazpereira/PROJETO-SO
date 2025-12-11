@@ -85,8 +85,21 @@ int move_ghost(board_t* board, int ghost_index, command_t* command);
 /*Process the death of a Pacman*/
 void kill_pacman(board_t* board, int pacman_index);
 
-/*Lists all level files in a directory*/
-int list_level_files(const char* directory, char*** lvl_files, int* n_lvl, char*** m_files, int* n_m, char*** p_files, int* n_p);
+static char** sorted_levels(const char *directory, int *n_levels);
+
+static int compare_strings(const void *a, const void *b);
+
+static int read_line(int fd, char *buffer, size_t max_size);
+
+static void read_level(int fd, board_t *board, char *pacman_file, 
+                              char ghost_files[][256], int *n_ghosts, 
+                              char ***map_lines, int *map_height);
+
+static void start_board(board_t *board, int n_ghosts, const char *level_name);
+
+static void build_board(board_t *board, char **map_lines, int map_height);
+
+static void load_pacman_manual(board_t *board, int points);
 
 int load_level(board_t *board, const char *directory, int level_index, int points);
 
@@ -112,8 +125,11 @@ void debug(const char * format, ...);
 void print_board(board_t* board);
 
 void start_board_thread(board_t* board);
+
 void start_character_threads(board_t* board);
+
 void stop_character_threads(board_t* board);
+
 void stop_board_thread(board_t* board);
 
 #endif
